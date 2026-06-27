@@ -1,0 +1,12 @@
+# Python junk we never want to track
+__pycache__/
+*.pyc
+.DS_Store
+
+# Streamlit secrets (we don't use any, but never commit these if added later)
+.streamlit/secrets.toml
+
+# Virtual environments
+venv/
+.venv/
+env/

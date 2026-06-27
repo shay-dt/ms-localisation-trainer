@@ -1,0 +1,4 @@
+# The only library our app needs. Streamlit Cloud reads this file to know
+# what to install. Everything else the app uses (json, pathlib, ast) is built
+# into Python.
+streamlit>=1.40
