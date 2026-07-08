@@ -43,19 +43,6 @@ streamlit run teaching_app.py
 
 Then open the URL it prints (usually http://localhost:8501).
 
-### Configuration (secrets)
-
-The app reads these from Streamlit secrets (or environment variables). None are
-committed to the repo.
-
-- `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` — enable the Dr. Cortex AI coach
-  (Claude via Amazon Bedrock). Without them the trainer still works fully; the
-  coach simply shows an "offline" message.
-- `APP_PASSWORD` — overrides the workshop password (optional).
-
-The AI provider is selected by `COACH_PROVIDER` in `coach.py` (`bedrock` by
-default; `groq`, `gemini`, `glm`, and direct `anthropic` are also supported).
-
 ## How it's built
 
 - `teaching_app.py` — the Streamlit app (interface, checkpoints, gamification).
