@@ -1,4 +1,7 @@
-# The only library our app needs. Streamlit Cloud reads this file to know
-# what to install. Everything else the app uses (json, pathlib, ast) is built
-# into Python.
+# Libraries Streamlit Cloud installs for our app.
+# Everything else the app uses (json, pathlib, os, base64) is built into Python.
 streamlit>=1.40
+anthropic[bedrock]>=0.40     # Dr. Cortex AI coach — Claude via Amazon Bedrock (with vision)
+# openai>=1.40               # alternative coach provider (z.ai / GLM)
+# groq>=0.11                 # alternative coach provider (Groq)
+# google-genai>=0.3          # alternative coach provider (Gemini)
