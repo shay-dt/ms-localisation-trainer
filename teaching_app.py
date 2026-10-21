@@ -343,24 +343,28 @@ def show_welcome():
         "**Step 1 — Read the examination.**  \n"
         "Each case shows you a structured neurological examination summary. "
         "Read it carefully before attempting the questions.\n\n"
-        "**Step 2 — Scroll down and answer the questions below the image.**  \n"
-        "You will see four questions to work through in order (shown below). "
-        "Answer each one and get instant feedback before moving to the next.\n\n"
-        "**Step 3 — Write up your full reasoning.**  \n"
-        "Use the free-text box to commit your localisation answer before revealing.\n\n"
+        "**Step 2 — Use Dr. Cortex, your AI tutor, to help you reason through the case.**  \n"
+        "Dr. Cortex is available on the right-hand side of every case. "
+        "Ask her questions — she will guide your thinking with hints and teaching points "
+        "without ever giving the answer away. Use her as much as you need.\n\n"
+        "**Step 3 — Answer the four questions below the examination.**  \n"
+        "Work through the checkpoints in order and get instant feedback on each one. "
+        "Then write up your full reasoning in the free-text box.\n\n"
         "**Step 4 — Reveal and score yourself.**  \n"
         "Compare your answer to the correct localisation and rate how you did."
     )
 
-    # Preview of the question format
+    # Preview of the question format — constrained width so it fits without scrolling
     preview_img = Path(__file__).parent / "assets" / "question_format_preview.png"
     if preview_img.exists():
         st.markdown("#### What the questions look like")
         st.caption(
-            "After reading the examination image, scroll down to find these four questions. "
+            "After reading the examination, scroll down to find these checkpoints. "
             "Work through them in order — don't skip straight to Reveal."
         )
-        st.image(str(preview_img), use_container_width=True)
+        _, img_col, _ = st.columns([1, 3, 1])
+        with img_col:
+            st.image(str(preview_img), use_container_width=True)
 
     st.divider()
 
