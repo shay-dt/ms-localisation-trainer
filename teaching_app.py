@@ -444,10 +444,13 @@ with main_col:
 
     st.divider()
     st.subheader("🧭 Your turn: work it out, step by step")
-    st.caption("Commit an answer at each checkpoint and get instant feedback — "
-               "then write up your full reasoning below.")
+    st.caption("Select your answers for questions 1–3, then click **Check my answers** "
+               "to get feedback. Write up your full reasoning in Q4, then reveal.")
 
     answers = derive_answers(case["lesions"])
+    submit_key = f"cp_submitted_{chosen}"
+    if submit_key not in st.session_state:
+        st.session_state[submit_key] = False
 
     # ── Checkpoint 1: how many lesions? ──────────────────────────────────────
     st.markdown("**1. What is the pattern of the lesion(s)?**")
@@ -457,20 +460,6 @@ with main_col:
         key=f"cp_num_{chosen}", index=None,
         label_visibility="collapsed",
     )
-    if c1 is not None:
-        if c1 == answers["one_or_many"]:
-            explain = {
-                "One lesion": "A single, well-localised site accounts for every sign.",
-                "Bilateral lesion": "One process affecting **both sides** symmetrically — think "
-                                    "toxic/metabolic/degenerative, *not* the multifocal pattern of MS.",
-                "More than one distinct lesion": "Signs that no single site can unify → separate "
-                                                 "lesions **disseminated in space** — the MS hallmark.",
-            }[c1]
-            st.success(f"✅ Correct. {explain}")
-        else:
-            st.warning("🤔 Not quite. Distinguish: can **one** site explain everything? If it needs "
-                       "**both sides**, is that a single *bilateral* process, or *separate* lesions "
-                       "in different places (dissemination in space)?")
 
     # ── Checkpoint 2: which region(s)? ───────────────────────────────────────
     st.markdown("**2. Which region(s) of the neuraxis are involved?**")
@@ -479,21 +468,6 @@ with main_col:
         label_visibility="collapsed",
         placeholder="Choose one or more regions",
     )
-    if picked_regions:
-        got  = set(picked_regions)
-        want = answers["regions"]
-        if got == want:
-            st.success("✅ Spot on — region(s): **" + ", ".join(sorted(want)) + "**.")
-        else:
-            missed = want - got
-            extra  = got - want
-            msg = []
-            if missed:
-                msg.append("you haven't yet identified a region the signs point to")
-            if extra:
-                msg.append("one of your choices isn't supported by the findings")
-            st.warning("🤔 " + "; ".join(msg).capitalize() +
-                       ". Tip: match each abnormal finding to the structure that produces it.")
 
     # ── Checkpoint 3: which side(s)? ─────────────────────────────────────────
     st.markdown("**3. Which side(s) is the lesion on?**")
@@ -502,12 +476,58 @@ with main_col:
         label_visibility="collapsed",
         placeholder="Choose one or more",
     )
-    if picked_sides:
-        if set(picked_sides) == answers["sides"]:
-            st.success("✅ Correct side(s): **" + ", ".join(sorted(answers["sides"])) +
-                       "**. Remember which tracts cross and where — the crossing has to make sense.")
+
+    # ── Submit button — gates all checkpoint feedback ─────────────────────────
+    btn_label = "🔄 Check again" if st.session_state[submit_key] else "✅ Check my answers"
+    if st.button(btn_label, key=f"cp_submit_{chosen}"):
+        st.session_state[submit_key] = True
+
+    # ── Feedback — only shown after submit ────────────────────────────────────
+    if st.session_state[submit_key]:
+        # Q1 feedback
+        if c1 is None:
+            st.warning("Q1: please select an answer.")
+        elif c1 == answers["one_or_many"]:
+            explain = {
+                "One lesion": "A single, well-localised site accounts for every sign.",
+                "Bilateral lesion": "One process affecting **both sides** symmetrically — think "
+                                    "toxic/metabolic/degenerative, *not* the multifocal pattern of MS.",
+                "More than one distinct lesion": "Signs that no single site can unify → separate "
+                                                 "lesions **disseminated in space** — the MS hallmark.",
+            }[c1]
+            st.success(f"✅ Q1 correct. {explain}")
         else:
-            st.warning("🤔 Check the laterality of each sign against where its tract "
+            st.warning("🤔 Q1: not quite. Can **one** site explain everything? If it needs "
+                       "**both sides**, is that a single *bilateral* process, or *separate* lesions "
+                       "in different places (dissemination in space)?")
+
+        # Q2 feedback
+        if not picked_regions:
+            st.warning("Q2: please select at least one region.")
+        else:
+            got  = set(picked_regions)
+            want = answers["regions"]
+            if got == want:
+                st.success("✅ Q2 correct — region(s): **" + ", ".join(sorted(want)) + "**.")
+            else:
+                missed = want - got
+                extra  = got - want
+                msg = []
+                if missed:
+                    msg.append("you haven't yet identified a region the signs point to")
+                if extra:
+                    msg.append("one of your choices isn't supported by the findings")
+                st.warning("🤔 Q2: " + "; ".join(msg) +
+                           ". Tip: match each abnormal finding to the structure that produces it.")
+
+        # Q3 feedback
+        if not picked_sides:
+            st.warning("Q3: please select at least one side.")
+        elif set(picked_sides) == answers["sides"]:
+            st.success("✅ Q3 correct — side(s): **" + ", ".join(sorted(answers["sides"])) +
+                       "**. Remember which tracts cross and where.")
+        else:
+            st.warning("🤔 Q3: check the laterality of each sign against where its tract "
                        "decussates. Ipsilateral cranial-nerve + contralateral body signs = brainstem.")
 
     st.divider()
@@ -524,8 +544,61 @@ with main_col:
         ),
     )
 
-    if st.button("🔓 Reveal correct answer & reasoning", type="primary"):
+    if st.button("🔓 Reveal correct answer & reasoning", type="primary",
+                 key=f"reveal_btn_{chosen}"):
         st.session_state[reveal_key] = True
+
+    # ── THE REVEAL — inline in main column so it appears right here ───────────
+    if st.session_state[reveal_key]:
+        st.divider()
+
+        student_answer = st.session_state.get(f"answer_{chosen}", "").strip()
+        if student_answer:
+            st.markdown("#### Your answer (for comparison)")
+            st.markdown(f"> {student_answer}")
+
+        if case["lesions"]:
+            st.success("**✅ Correct lesion location(s):**\n\n" +
+                       "\n".join(f"- {x}" for x in case["lesions"]))
+        if case["diagnosis"]:
+            st.info("**Diagnosis:** " + ", ".join(case["diagnosis"]))
+
+        if case["reference_reasoning"]:
+            st.markdown("#### Worked reasoning (reference)")
+            st.markdown(case["reference_reasoning"])
+            st.caption("Reference localisation generated by an LLM in the source study; "
+                       "use it to check your reasoning, not as gospel.")
+
+        # ── Self-rating ───────────────────────────────────────────────────────
+        st.divider()
+        st.markdown("#### How did you do on this case?")
+        st.caption("Be honest — this just tracks your own progress.")
+        col_got, col_rev = st.columns(2)
+        already = chosen in st.session_state.scored
+
+        with col_got:
+            if st.button("⭐ I got it right", disabled=already, key=f"got_{chosen}"):
+                st.session_state.scored.add(chosen)
+                st.session_state.score += 1
+                if st.session_state.get("user_email"):
+                    db.log_completion(st.session_state.user_email, chosen, "nailed_it")
+                st.balloons()
+                st.rerun()
+
+        with col_rev:
+            if st.button("📚 I'll review this one", disabled=already, key=f"review_{chosen}"):
+                st.session_state.scored.add(chosen)
+                if st.session_state.get("user_email"):
+                    db.log_completion(st.session_state.user_email, chosen, "needs_review")
+                st.rerun()
+
+        if already:
+            st.caption("✅ Scored. Pick the next case from the sidebar.")
+
+        if len(st.session_state.scored) == len(CHOSEN_CASES):
+            st.success(f"🎉 You've completed all {len(CHOSEN_CASES)} cases! "
+                       f"You nailed {st.session_state.score} of them. "
+                       "Localisation is a skill — come back and beat your score.")
 
 
 # ── Dr. Cortex chat (right column) ────────────────────────────────────────────
@@ -555,61 +628,3 @@ with coach_col:
                     coach.get_coach_reply(st.session_state[chat_key], case)
                 )
             st.session_state[chat_key].append({"role": "assistant", "content": reply})
-
-
-# ===========================================================================
-# THE REVEAL
-# ===========================================================================
-if st.session_state[reveal_key]:
-    st.divider()
-
-    student_answer = st.session_state.get(f"answer_{chosen}", "").strip()
-    if student_answer:
-        st.markdown("#### Your answer (for comparison)")
-        st.markdown(f"> {student_answer}")
-
-    if case["lesions"]:
-        st.success("**✅ Correct lesion location(s):**\n\n" +
-                   "\n".join(f"- {x}" for x in case["lesions"]))
-    if case["diagnosis"]:
-        st.info("**Diagnosis:** " + ", ".join(case["diagnosis"]))
-
-    if case["reference_reasoning"]:
-        st.markdown("#### Worked reasoning (reference)")
-        st.markdown(case["reference_reasoning"])
-        st.caption("Reference localisation generated by an LLM in the source study; "
-                   "use it to check your reasoning, not as gospel.")
-
-    # ── Self-rating (gamification + completion tracking) ──────────────────────
-    st.divider()
-    st.markdown("#### How did you do on this case?")
-    st.caption("Be honest — this just tracks your own progress.")
-    col_got, col_rev = st.columns(2)
-    already = chosen in st.session_state.scored
-
-    with col_got:
-        if st.button("⭐ I got it right", disabled=already, key=f"got_{chosen}"):
-            st.session_state.scored.add(chosen)
-            st.session_state.score += 1
-            # Save to Supabase
-            if st.session_state.get("user_email"):
-                db.log_completion(st.session_state.user_email, chosen, "nailed_it")
-            st.balloons()
-            st.rerun()
-
-    with col_rev:
-        if st.button("📚 I'll review this one", disabled=already, key=f"review_{chosen}"):
-            st.session_state.scored.add(chosen)
-            # Save to Supabase
-            if st.session_state.get("user_email"):
-                db.log_completion(st.session_state.user_email, chosen, "needs_review")
-            st.rerun()
-
-    if already:
-        st.caption("✅ Scored. Pick the next case from the sidebar.")
-
-    # ── Completion celebration ────────────────────────────────────────────────
-    if len(st.session_state.scored) == len(CHOSEN_CASES):
-        st.success(f"🎉 You've completed all {len(CHOSEN_CASES)} cases! "
-                   f"You nailed {st.session_state.score} of them. "
-                   "Localisation is a skill — come back and beat your score.")
