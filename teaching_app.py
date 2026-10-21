@@ -546,7 +546,16 @@ with main_col:
 
     if st.button("🔓 Reveal correct answer & reasoning", type="primary",
                  key=f"reveal_btn_{chosen}"):
-        st.session_state[reveal_key] = True
+        student_text = st.session_state.get(f"answer_{chosen}", "").strip()
+        if not student_text:
+            st.warning(
+                "✏️ **Before revealing, write up your reasoning in the box above.** "
+                "Not sure where to start? Ask **Dr. Cortex** on the right — she'll help you "
+                "think it through step by step without giving the answer away. "
+                "Even a rough attempt helps the learning stick."
+            )
+        else:
+            st.session_state[reveal_key] = True
 
     # ── THE REVEAL — inline in main column so it appears right here ───────────
     if st.session_state[reveal_key]:
