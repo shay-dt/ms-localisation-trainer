@@ -332,20 +332,43 @@ def show_welcome():
     st.title("🧠 MS Lesion Localisation Trainer")
     st.subheader("Learn to pinpoint where the lesion is — like a neurologist.")
     st.markdown(
-        "You'll see **10 real-style neurological examinations**. For each one, your job is to "
-        "**work out where the lesion is** before revealing the answer.\n\n"
-        "**How it works:**\n"
-        "1. 🔍 Read the examination.\n"
-        "2. 🧭 Work through the localisation method (UMN/LMN → how many lesions → where → "
-        "which side → fewest lesions).\n"
-        "3. 💬 Stuck? Ask **Dr. Cortex**, your AI neurology tutor — she gives hints, never the answer.\n"
-        "4. 🔓 Commit your answer, then reveal the correct localisation and score yourself.\n\n"
-        "Track your progress across all 10 and aim to build the reflex real clinicians use."
+        "This module contains **10 real-style neurological examinations**. "
+        "For each one, your job is to **work out where the lesion is** before the answer is revealed."
     )
+
+    st.divider()
+
+    st.markdown("#### How to use this trainer")
+    st.markdown(
+        "**Step 1 — Read the examination.**  \n"
+        "Each case shows you a structured neurological examination summary. "
+        "Read it carefully before attempting the questions.\n\n"
+        "**Step 2 — Scroll down and answer the questions below the image.**  \n"
+        "You will see four questions to work through in order (shown below). "
+        "Answer each one and get instant feedback before moving to the next.\n\n"
+        "**Step 3 — Write up your full reasoning.**  \n"
+        "Use the free-text box to commit your localisation answer before revealing.\n\n"
+        "**Step 4 — Reveal and score yourself.**  \n"
+        "Compare your answer to the correct localisation and rate how you did."
+    )
+
+    # Preview of the question format
+    preview_img = Path(__file__).parent / "assets" / "question_format_preview.png"
+    if preview_img.exists():
+        st.markdown("#### What the questions look like")
+        st.caption(
+            "After reading the examination image, scroll down to find these four questions. "
+            "Work through them in order — don't skip straight to Reveal."
+        )
+        st.image(str(preview_img), use_container_width=True)
+
+    st.divider()
+
     if coach.coach_is_available():
-        st.success("💬 Dr. Cortex (AI tutor) is online and ready to help.")
+        st.success("💬 Dr. Cortex (AI tutor) is online — ask her for hints at any point, she will guide you without giving the answer away.")
     else:
         st.info("💡 Dr. Cortex (AI tutor) is currently offline — the trainer works fully without it.")
+
     if st.button("▶️  Start training", type="primary"):
         st.session_state.started = True
         st.rerun()
