@@ -32,7 +32,7 @@ import db           # Supabase database operations (db.py)
 
 
 # ── Page config (must be first Streamlit call) ────────────────────────────────
-st.set_page_config(layout="wide", page_title="MS Localisation Trainer", page_icon="🧠")
+st.set_page_config(layout="wide", page_title="Lesional Neurology Trainer", page_icon="🧠")
 
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ def _access_code() -> str:
 def show_login_page():
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.markdown("# 🧠 MS Lesion Trainer")
+        st.markdown("# 🧠 Lesional Neurology Trainer")
         st.markdown("*Oxford Clinical Neurosciences — Catchup Module*")
         st.divider()
         st.markdown("### Sign in")
@@ -242,7 +242,7 @@ if not check_auth():
 # ===========================================================================
 
 def show_admin_page():
-    st.title("🧠 MS Trainer — Admin")
+    st.title("🧠 Lesional Neurology Trainer — Admin")
     st.caption(f"Signed in as **{st.session_state.get('user_email', '')}**")
 
     # ── Add a student ─────────────────────────────────────────────────────────
@@ -329,7 +329,7 @@ if "scored" not in st.session_state:
 # WELCOME SCREEN
 # ===========================================================================
 def show_welcome():
-    st.title("🧠 MS Lesion Localisation Trainer")
+    st.title("🧠 Lesional Neurology Trainer")
     st.subheader("Learn to pinpoint where the lesion is — like a neurologist.")
     st.markdown(
         "This module contains **10 real-style neurological examinations**. "
