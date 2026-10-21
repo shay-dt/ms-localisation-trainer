@@ -1,14 +1,15 @@
 # teaching_app.py
 # ===========================================================================
-# THE MS LESION-LOCALISATION TRAINER  (v2 — interactive + AI coach)
+# THE MS LESION-LOCALISATION TRAINER  (v3 — email login + admin dashboard)
 #
-# The "flip": show the exam, hide the answer, make the student localise the
-# lesion themselves, THEN reveal + let them self-rate. A live AI tutor
-# ("Dr. Cortex") gives Socratic hints along the way without giving the answer.
+# New in v3:
+#   - Email OTP login replaces the shared workshop password.
+#   - Admin dashboard: invite students, see who logged in and their progress.
+#   - Completion tracking: every self-rating is saved to Supabase.
+#   - Progress is restored from the database on each login.
 #
 # Streamlit mental model: this script runs top-to-bottom on every interaction.
-# Every st.something(...) draws on the page. st.session_state is the notebook
-# that survives those reruns (it remembers score, chat history, reveal state).
+# st.session_state is the notebook that persists across those reruns.
 # ===========================================================================
 
 import streamlit as st
@@ -16,11 +17,9 @@ from pathlib import Path
 import os
 import json
 import re
+from datetime import datetime, timezone
 
 # --- Make Bedrock/AWS secrets visible to the AWS SDK ---
-# Locally these live in ~/.zshrc (already in the environment). On Streamlit Cloud
-# you paste them into the app's Secrets box; this copies them into the environment
-# so the AWS SDK (used by the coach) picks them up automatically.
 for _k in ("AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"):
     try:
         if _k in st.secrets and _k not in os.environ:
@@ -28,28 +27,63 @@ for _k in ("AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"):
     except Exception:
         pass
 
-import coach  # our provider-agnostic AI coach (see coach.py)
+import coach        # provider-agnostic AI coach (coach.py)
+import db           # Supabase database operations (db.py)
 
-# The neuraxis "menu" the student picks regions from (the localisation ladder).
+
+# ── Page config (must be first Streamlit call) ────────────────────────────────
+st.set_page_config(layout="wide", page_title="MS Localisation Trainer", page_icon="🧠")
+
+
+# ── Constants ──────────────────────────────────────────────────────────────────
 REGION_OPTIONS = [
     "Cortex", "Subcortical / White matter", "Brainstem", "Cerebellum",
     "Spinal cord", "Optic nerve", "Root", "Plexus", "Nerve", "NMJ", "Muscle",
 ]
 
+BASE_PATH    = Path(__file__).parent / "cases_github"
+CHOSEN_CASES = ["0001", "0007", "0010", "0017", "0032",
+                "0036", "0041", "0053", "0066", "0070"]
+CASE_TITLES  = {c: f"Case {i + 1}" for i, c in enumerate(CHOSEN_CASES)}
+REFERENCE_MODEL = "openai_gpt-5-1"
 
-# --- Derive the CORRECT checkpoint answers from the ground-truth lesion text ---
-# The repo stores lesions as strings like "right C5 myelopathy" or
-# "bilateral optic nerve (cranial nerve II)". We parse those into:
-#   - how many distinct sites (→ one vs more-than-one),
-#   - which neuraxis regions,
-#   - which side(s).
-# This lets us grade the student instantly with NO AI and NO manual annotation.
-# (Shay should sanity-check these derived answers for clinical accuracy.)
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _admin_emails() -> list[str]:
+    """Comma-separated list of admin emails from secrets."""
+    try:
+        raw = st.secrets.get("ADMIN_EMAILS", "")
+    except Exception:
+        raw = os.environ.get("ADMIN_EMAILS", "")
+    return [e.strip().lower() for e in raw.split(",") if e.strip()]
+
+
+def _relative_time(iso_str: str) -> str:
+    """Turn an ISO timestamp into a human string like '3 days ago'."""
+    try:
+        dt   = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        diff = datetime.now(timezone.utc) - dt
+        days = diff.days
+        if days == 0:
+            hours = diff.seconds // 3600
+            return "just now" if hours == 0 else f"{hours}h ago"
+        if days == 1:
+            return "yesterday"
+        if days < 7:
+            return f"{days} days ago"
+        if days < 30:
+            return f"{days // 7}w ago"
+        return f"{days // 30}mo ago"
+    except Exception:
+        return iso_str
+
+
+# ── Derive correct checkpoint answers from ground-truth lesion text ───────────
 def derive_answers(lesions):
     regions, sides = set(), set()
     for raw in lesions:
         l = raw.lower()
-        # --- region ---
         if any(k in l for k in ["midbrain", "pons", "medulla", "brainstem"]):
             regions.add("Brainstem")
         if "cerebell" in l:
@@ -63,7 +97,6 @@ def derive_answers(lesions):
             regions.add("Subcortical / White matter")
         elif "cortex" in l or "cortical" in l:
             regions.add("Cortex")
-        # --- side (bilateral = both) ---
         if "bilateral" in l:
             sides.update(["Left", "Right"])
         else:
@@ -71,10 +104,7 @@ def derive_answers(lesions):
                 sides.add("Right")
             if "left" in l:
                 sides.add("Left")
-    # Three-way classification:
-    #   - a single entry that spans both sides ("bilateral X") = a bilateral lesion
-    #   - a single entry on one side                            = one lesion
-    #   - multiple distinct entries                             = multifocal (MS hallmark)
+
     single_bilateral = len(lesions) == 1 and "bilateral" in lesions[0].lower()
     if single_bilateral:
         one_or_many = "Bilateral lesion"
@@ -83,33 +113,15 @@ def derive_answers(lesions):
     else:
         one_or_many = "More than one distinct lesion"
 
-    return {
-        "num_sites": len(lesions),
-        "one_or_many": one_or_many,
-        "regions": regions,
-        "sides": sides,
-    }
-
-# --- WHERE THE CASES LIVE ---
-BASE_PATH = Path(__file__).parent / "cases_github"
-
-# --- THE 10 CURATED TEACHING CASES (in teaching order) ---
-CHOSEN_CASES = ["0001", "0007", "0010", "0017", "0032",
-                "0036", "0041", "0053", "0066", "0070"]
-
-# Neutral labels — deliberately NO diagnostic clue in the title.
-CASE_TITLES = {c: f"Case {i + 1}" for i, c in enumerate(CHOSEN_CASES)}
-
-# Which model's reasoning to show as the "reference" worked answer on reveal.
-REFERENCE_MODEL = "openai_gpt-5-1"
+    return {"num_sites": len(lesions), "one_or_many": one_or_many,
+            "regions": regions, "sides": sides}
 
 
-# --- LOAD a case: exam image + ground-truth answer + reference reasoning ---
+# ── Load a case ───────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner="Loading case...")
 def load_case(case_number):
     case_path = BASE_PATH / f"case_{case_number}"
     data = {}
-
     img = case_path / "combined_examination_summary.png"
     data["image"] = img.read_bytes() if img.exists() else None
 
@@ -117,11 +129,11 @@ def load_case(case_number):
     data["lesions"] = []
     data["diagnosis"] = []
     if report_file.exists():
-        report = json.loads(report_file.read_text(encoding="utf-8"))
+        report  = json.loads(report_file.read_text(encoding="utf-8"))
         marking = report.get("marking_output", {})
-        loc = marking.get("Localisation", {}).get("structured_data", {})
-        ddx = marking.get("Differential diagnosis", {}).get("structured_data", {})
-        data["lesions"] = loc.get("gt_lesions_english", [])
+        loc     = marking.get("Localisation", {}).get("structured_data", {})
+        ddx     = marking.get("Differential diagnosis", {}).get("structured_data", {})
+        data["lesions"]   = loc.get("gt_lesions_english", [])
         data["diagnosis"] = list(ddx.get("gt_diagnoses_with_source", {}).keys())
 
     ans_file = case_path / f"q_{REFERENCE_MODEL}_localisation.json"
@@ -136,46 +148,175 @@ def load_case(case_number):
     return data
 
 
-st.set_page_config(layout="wide", page_title="MS Localisation Trainer", page_icon="🧠")
-
-
 # ===========================================================================
-# PASSWORD GATE — keeps the app (and the AI coach that runs on our AWS bill)
-# private to workshop attendees. The password is read from a Streamlit secret
-# if present, otherwise falls back to the shared workshop password.
+# LOGIN — email address + shared access code
+#
+# No email infrastructure needed. The organiser distributes the access code
+# alongside the app URL. Students self-register on first login; returning
+# students are recognised by their email and their progress is restored.
+#
+# Secrets required:
+#   ACCESS_CODE  = "OxfordNeuro2026"   (distribute this to your cohort)
+#   ADMIN_EMAILS = "shay@atmanlabs.ai" (comma-separated; get admin dashboard)
+#
+# session_state keys set on login:
+#   logged_in  : True once authenticated
+#   user_email : the verified email address
+#   user_role  : "student" | "admin"
 # ===========================================================================
-def check_password():
-    def _correct():
-        try:
-            expected = st.secrets.get("APP_PASSWORD", "OxfordAwayDay")
-        except Exception:
-            expected = "OxfordAwayDay"
-        if st.session_state.get("pw_input", "") == expected:
-            st.session_state.pw_ok = True
-            del st.session_state["pw_input"]   # don't keep the password around
-        else:
-            st.session_state.pw_ok = False
 
-    if st.session_state.get("pw_ok"):
+def _access_code() -> str:
+    """The shared code students use to sign in."""
+    try:
+        return str(st.secrets.get("ACCESS_CODE", "OxfordNeuro2026"))
+    except Exception:
+        return os.environ.get("ACCESS_CODE", "OxfordNeuro2026")
+
+
+def show_login_page():
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        st.markdown("# 🧠 MS Lesion Trainer")
+        st.markdown("*Oxford Clinical Neurosciences — Catchup Module*")
+        st.divider()
+        st.markdown("### Sign in")
+        st.caption("Enter your email and the access code from your session organiser.")
+
+        email_input = st.text_input(
+            "Email address", placeholder="you@ox.ac.uk", key="login_email"
+        )
+        code_input = st.text_input(
+            "Access code", placeholder="e.g. OxfordNeuro2026",
+            type="password", key="login_code"
+        )
+
+        if st.button("Sign in →", type="primary", use_container_width=True):
+            email = email_input.strip().lower()
+            code  = code_input.strip()
+
+            if not email or "@" not in email:
+                st.error("Please enter a valid email address.")
+            elif code != _access_code():
+                st.error("Access code incorrect — check with your session organiser.")
+            else:
+                is_admin = email in _admin_emails()
+                user     = db.get_user(email)
+
+                # First-time visitor: create their account automatically
+                if not user:
+                    db.add_user(email, role="admin" if is_admin else "student")
+                    user = db.get_user(email)
+
+                db.touch_login(email)
+
+                # Restore any prior progress from the database
+                prior = db.completions_for(email)
+                st.session_state.scored = set(c["case_number"] for c in prior)
+                st.session_state.score  = sum(
+                    1 for c in prior if c.get("self_rating") == "nailed_it"
+                )
+
+                st.session_state.logged_in  = True
+                st.session_state.user_email = email
+                st.session_state.user_role  = "admin" if is_admin else (
+                    user.get("role", "student") if user else "student"
+                )
+                st.rerun()
+
+
+def check_auth() -> bool:
+    """Return True if logged in, otherwise show login page and return False."""
+    if st.session_state.get("logged_in"):
         return True
-
-    st.title("🧠 MS Lesion Localisation Trainer")
-    st.text_input("Enter the workshop password to continue:",
-                  type="password", key="pw_input", on_change=_correct)
-    if st.session_state.get("pw_ok") is False:
-        st.error("Incorrect password — please try again.")
+    show_login_page()
     return False
 
 
-if not check_password():
+if not check_auth():
     st.stop()
 
 
-# --- SESSION STATE: our persistent "notebook" across reruns ---
-# started    : has the student left the welcome screen?
-# score      : how many cases they've self-rated as "got it"
-# scored     : set of case ids already scored (so we don't double-count)
-# chat_<id>  : chat history with Dr. Cortex, per case
+# ===========================================================================
+# ADMIN DASHBOARD
+# Visible only when logged in as admin and show_admin is True.
+# ===========================================================================
+
+def show_admin_page():
+    st.title("🧠 MS Trainer — Admin")
+    st.caption(f"Signed in as **{st.session_state.get('user_email', '')}**")
+
+    # ── Add a student ─────────────────────────────────────────────────────────
+    st.markdown("#### Add a student")
+    st.caption("Students must be added here before they can sign in.")
+
+    col_em, col_btn = st.columns([4, 1])
+    with col_em:
+        new_email = st.text_input(
+            "Student email", placeholder="student@ox.ac.uk",
+            label_visibility="collapsed", key="admin_invite_email"
+        )
+    with col_btn:
+        if st.button("Add", type="primary", use_container_width=True):
+            email = new_email.strip().lower()
+            if not email or "@" not in email:
+                st.error("Enter a valid email.")
+            elif db.get_user(email):
+                st.warning(f"{email} is already in the system.")
+            else:
+                db.add_user(email, role="student",
+                            invited_by=st.session_state.get("user_email"))
+                st.success(f"Added {email}")
+                st.rerun()
+
+    st.divider()
+
+    # ── Student table ─────────────────────────────────────────────────────────
+    st.markdown("#### Students")
+
+    summary = db.admin_summary()
+    students = [u for u in summary if u.get("role") == "student"]
+
+    if not students:
+        st.info("No students added yet. Use the form above to add them.")
+    else:
+        # Column headers
+        h = st.columns([3, 2, 1.8, 1.5, 1])
+        for col, label in zip(h, ["Email", "Last login", "Completed", "⭐ Nailed", ""]):
+            col.markdown(f"<span style='color:#6c7d85;font-size:13px;font-weight:600'>"
+                         f"{label}</span>", unsafe_allow_html=True)
+        st.divider()
+
+        for u in students:
+            row = st.columns([3, 2, 1.8, 1.5, 1])
+            row[0].markdown(u["email"])
+
+            last = u.get("last_login_at")
+            row[1].markdown(_relative_time(last) if last else "*never*")
+
+            row[2].markdown(f"{u['cases_completed']} / {len(CHOSEN_CASES)}")
+            row[3].markdown(str(u["cases_nailed"]))
+
+            if row[4].button("Remove", key=f"rm_{u['email']}",
+                             help=f"Remove {u['email']} from the system"):
+                db.remove_user(u["email"])
+                st.rerun()
+
+    st.divider()
+    if st.button("← Back to trainer"):
+        st.session_state.show_admin = False
+        st.rerun()
+
+
+# Route admin to the dashboard if they asked for it
+if (st.session_state.get("show_admin")
+        and st.session_state.get("user_role") == "admin"):
+    show_admin_page()
+    st.stop()
+
+
+# ===========================================================================
+# SESSION STATE — persistent notebook for the trainer
+# ===========================================================================
 if "started" not in st.session_state:
     st.session_state.started = False
 if "score" not in st.session_state:
@@ -185,7 +326,7 @@ if "scored" not in st.session_state:
 
 
 # ===========================================================================
-# WELCOME SCREEN — shown once, sets the tone and explains the game.
+# WELCOME SCREEN
 # ===========================================================================
 def show_welcome():
     st.title("🧠 MS Lesion Localisation Trainer")
@@ -204,8 +345,7 @@ def show_welcome():
     if coach.coach_is_available():
         st.success("💬 Dr. Cortex (AI tutor) is online and ready to help.")
     else:
-        st.info("💡 Dr. Cortex (AI tutor) is currently offline — the trainer works fully without it. "
-                "Add an API key to switch her on.")
+        st.info("💡 Dr. Cortex (AI tutor) is currently offline — the trainer works fully without it.")
     if st.button("▶️  Start training", type="primary"):
         st.session_state.started = True
         st.rerun()
@@ -213,17 +353,17 @@ def show_welcome():
 
 if not st.session_state.started:
     show_welcome()
-    st.stop()   # don't render the rest until they start
+    st.stop()
 
 
 # ===========================================================================
-# THE MAIN TRAINER
+# SIDEBAR — progress, score, case picker, admin button, sign out
 # ===========================================================================
-# --- SIDEBAR: progress, score, case picker ---
 with st.sidebar:
     st.header("Your progress")
     done = len(st.session_state.scored)
-    st.progress(done / len(CHOSEN_CASES), text=f"{done} / {len(CHOSEN_CASES)} cases attempted")
+    st.progress(done / len(CHOSEN_CASES),
+                text=f"{done} / {len(CHOSEN_CASES)} cases attempted")
     st.metric("⭐ Cases you nailed", st.session_state.score)
     st.divider()
 
@@ -237,6 +377,27 @@ with st.sidebar:
     )
     image_width = st.slider("Exam image size", 500, 1400, 950, 50)
 
+    st.divider()
+
+    # Admin dashboard shortcut (only shown to admins)
+    if st.session_state.get("user_role") == "admin":
+        if st.button("⚙️ Admin dashboard", use_container_width=True):
+            st.session_state.show_admin = True
+            st.rerun()
+
+    # Sign-out button
+    user_display = st.session_state.get("user_email", "")
+    st.caption(f"Signed in as {user_display}")
+    if st.button("Sign out", use_container_width=True):
+        for key in ["logged_in", "user_email", "user_role",
+                    "started", "score", "scored", "show_admin"]:
+            st.session_state.pop(key, None)
+        st.rerun()
+
+
+# ===========================================================================
+# MAIN TRAINER
+# ===========================================================================
 case = load_case(chosen)
 
 reveal_key = f"revealed_{chosen}"
@@ -245,7 +406,6 @@ if reveal_key not in st.session_state:
 
 st.header(CASE_TITLES.get(chosen, chosen))
 
-# --- Layout: exam + task on the left, Dr. Cortex chat on the right ---
 main_col, coach_col = st.columns([3, 2])
 
 with main_col:
@@ -262,7 +422,7 @@ with main_col:
 
     answers = derive_answers(case["lesions"])
 
-    # --- CHECKPOINT 1: how many lesions? ---
+    # ── Checkpoint 1: how many lesions? ──────────────────────────────────────
     st.markdown("**1. What is the pattern of the lesion(s)?**")
     c1 = st.radio(
         "num lesions",
@@ -285,7 +445,7 @@ with main_col:
                        "**both sides**, is that a single *bilateral* process, or *separate* lesions "
                        "in different places (dissemination in space)?")
 
-    # --- CHECKPOINT 2: which region(s)? ---
+    # ── Checkpoint 2: which region(s)? ───────────────────────────────────────
     st.markdown("**2. Which region(s) of the neuraxis are involved?**")
     picked_regions = st.multiselect(
         "regions", REGION_OPTIONS, key=f"cp_reg_{chosen}",
@@ -293,13 +453,13 @@ with main_col:
         placeholder="Choose one or more regions",
     )
     if picked_regions:
-        got = set(picked_regions)
+        got  = set(picked_regions)
         want = answers["regions"]
         if got == want:
             st.success("✅ Spot on — region(s): **" + ", ".join(sorted(want)) + "**.")
         else:
             missed = want - got
-            extra = got - want
+            extra  = got - want
             msg = []
             if missed:
                 msg.append("you haven't yet identified a region the signs point to")
@@ -308,7 +468,7 @@ with main_col:
             st.warning("🤔 " + "; ".join(msg).capitalize() +
                        ". Tip: match each abnormal finding to the structure that produces it.")
 
-    # --- CHECKPOINT 3: which side(s)? ---
+    # ── Checkpoint 3: which side(s)? ─────────────────────────────────────────
     st.markdown("**3. Which side(s) is the lesion on?**")
     picked_sides = st.multiselect(
         "sides", ["Left", "Right", "Midline"], key=f"cp_side_{chosen}",
@@ -341,7 +501,7 @@ with main_col:
         st.session_state[reveal_key] = True
 
 
-# --- DR. CORTEX CHAT (right column) ---
+# ── Dr. Cortex chat (right column) ────────────────────────────────────────────
 with coach_col:
     st.markdown("#### 💬 Dr. Cortex — your AI tutor")
 
@@ -351,24 +511,19 @@ with coach_col:
     else:
         st.caption("Ask for a hint — she'll guide you, never just hand over the answer.")
 
-        # Per-case chat history lives in session_state.
         chat_key = f"chat_{chosen}"
         if chat_key not in st.session_state:
             st.session_state[chat_key] = []
 
-        # Show the conversation so far.
         for msg in st.session_state[chat_key]:
             with st.chat_message("user" if msg["role"] == "user" else "assistant"):
                 st.markdown(msg["content"])
 
-        # Input box. When the student sends a message:
         if prompt := st.chat_input("e.g. 'I think it's a cord lesion — am I close?'"):
             st.session_state[chat_key].append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                # st.write_stream renders the coach's reply token-by-token, and
-                # returns the full text so we can save it to history.
                 reply = st.write_stream(
                     coach.get_coach_reply(st.session_state[chat_key], case)
                 )
@@ -376,7 +531,7 @@ with coach_col:
 
 
 # ===========================================================================
-# THE REVEAL — full width, below the two columns.
+# THE REVEAL
 # ===========================================================================
 if st.session_state[reveal_key]:
     st.divider()
@@ -398,27 +553,35 @@ if st.session_state[reveal_key]:
         st.caption("Reference localisation generated by an LLM in the source study; "
                    "use it to check your reasoning, not as gospel.")
 
-    # --- SELF-RATING (gamification) ---
+    # ── Self-rating (gamification + completion tracking) ──────────────────────
     st.divider()
     st.markdown("#### How did you do on this case?")
     st.caption("Be honest — this just tracks your own progress.")
-    c1, c2 = st.columns(2)
+    col_got, col_rev = st.columns(2)
     already = chosen in st.session_state.scored
-    with c1:
+
+    with col_got:
         if st.button("⭐ I got it right", disabled=already, key=f"got_{chosen}"):
             st.session_state.scored.add(chosen)
             st.session_state.score += 1
+            # Save to Supabase
+            if st.session_state.get("user_email"):
+                db.log_completion(st.session_state.user_email, chosen, "nailed_it")
             st.balloons()
             st.rerun()
-    with c2:
+
+    with col_rev:
         if st.button("📚 I'll review this one", disabled=already, key=f"review_{chosen}"):
-            st.session_state.scored.add(chosen)   # counts as attempted, not nailed
+            st.session_state.scored.add(chosen)
+            # Save to Supabase
+            if st.session_state.get("user_email"):
+                db.log_completion(st.session_state.user_email, chosen, "needs_review")
             st.rerun()
 
     if already:
         st.caption("✅ Scored. Pick the next case from the sidebar.")
 
-    # --- COMPLETION CELEBRATION ---
+    # ── Completion celebration ────────────────────────────────────────────────
     if len(st.session_state.scored) == len(CHOSEN_CASES):
         st.success(f"🎉 You've completed all {len(CHOSEN_CASES)} cases! "
                    f"You nailed {st.session_state.score} of them. "
