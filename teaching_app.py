@@ -322,8 +322,8 @@ def show_admin_page():
 
 
 def _show_student_detail(email: str):
-    """Detail view: all completed cases for one student with their answers."""
-    st.title(f"🧠 Student answers")
+    """Detail view: all completed cases for one student with side-by-side comparison."""
+    st.title("🧠 Student answers")
     st.markdown(f"**{email}**")
 
     if st.button("← Back to all students"):
@@ -337,6 +337,9 @@ def _show_student_detail(email: str):
         st.info("This student hasn't completed any cases yet.")
         return
 
+    def _tick(ok: bool) -> str:
+        return "✅" if ok else "❌"
+
     for r in rows:
         case_num  = r.get("case_number", "?")
         case_idx  = CHOSEN_CASES.index(case_num) + 1 if case_num in CHOSEN_CASES else "?"
@@ -344,18 +347,45 @@ def _show_student_detail(email: str):
         badge     = "⭐ Nailed it" if rating == "nailed_it" else "📚 Needs review"
         completed = r.get("completed_at", "")
 
-        with st.expander(f"Case {case_idx}  —  {badge}  ({_relative_time(completed) if completed else ''})", expanded=False):
+        # Load correct answers for this case
+        case_data = load_case(case_num) if case_num in CHOSEN_CASES else {}
+        correct   = derive_answers(case_data.get("lesions", [])) if case_data else {}
+        c_pattern = correct.get("one_or_many", "—")
+        c_regions = ", ".join(sorted(correct.get("regions", []))) or "—"
+        c_sides   = ", ".join(sorted(correct.get("sides", [])))   or "—"
+        c_lesions = ", ".join(case_data.get("lesions", [])) or "—"
+        c_diag    = ", ".join(case_data.get("diagnosis", [])) or "—"
 
-            q1 = r.get("cp_pattern") or "*not answered*"
-            q2 = ", ".join(r.get("cp_regions") or []) or "*not answered*"
-            q3 = ", ".join(r.get("cp_sides") or []) or "*not answered*"
-            q4 = r.get("free_text") or "*not answered*"
+        # Student answers
+        s_pattern = r.get("cp_pattern") or "—"
+        s_regions = ", ".join(r.get("cp_regions") or []) or "—"
+        s_sides   = ", ".join(r.get("cp_sides") or [])   or "—"
+        s_text    = r.get("free_text") or "*not written*"
 
-            st.markdown(f"**Q1 — Pattern:** {q1}")
-            st.markdown(f"**Q2 — Region(s):** {q2}")
-            st.markdown(f"**Q3 — Side(s):** {q3}")
-            st.markdown("**Q4 — Their reasoning:**")
-            st.markdown(f"> {q4}")
+        q1_ok = s_pattern == c_pattern
+        q2_ok = set(r.get("cp_regions") or []) == correct.get("regions", set())
+        q3_ok = set(r.get("cp_sides") or [])   == correct.get("sides", set())
+
+        label = f"Case {case_idx}  —  {badge}  ({_relative_time(completed) if completed else ''})"
+        with st.expander(label, expanded=True):
+            s_col, c_col = st.columns(2)
+
+            with s_col:
+                st.markdown("##### Student's answer")
+                st.markdown(f"{_tick(q1_ok)} **Q1 — Pattern:** {s_pattern}")
+                st.markdown(f"{_tick(q2_ok)} **Q2 — Region(s):** {s_regions}")
+                st.markdown(f"{_tick(q3_ok)} **Q3 — Side(s):** {s_sides}")
+                st.markdown("**Q4 — Reasoning:**")
+                st.markdown(f"> {s_text}")
+
+            with c_col:
+                st.markdown("##### Correct answer")
+                st.markdown(f"**Q1:** {c_pattern}")
+                st.markdown(f"**Q2:** {c_regions}")
+                st.markdown(f"**Q3:** {c_sides}")
+                st.markdown("**Lesion(s):**")
+                st.success(c_lesions)
+                st.markdown(f"**Diagnosis:** {c_diag}")
 
 
 # Route admin to the dashboard if they asked for it
