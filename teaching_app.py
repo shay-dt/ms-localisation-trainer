@@ -858,8 +858,9 @@ with main_col:
 
     if st.session_state[reveal_key]:
         st.caption(
-            "👇 Scroll down to see the answer — then **honestly** rate yourself at the bottom. "
-            "No one benefits from marking yourself right when you weren't. "
+            "👇 Scroll down to see the answer — then click one of the **'How did you do on this case?'** "
+            "buttons at the bottom to submit the case and save your progress. "
+            "Please be **honest**: no one benefits from marking yourself right when you weren't. "
             "Your tutors can see your answers and your self-rating, so be fair to yourself."
         )
 
