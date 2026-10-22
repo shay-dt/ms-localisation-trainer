@@ -304,6 +304,32 @@ def show_login_page():
                     )
                     st.rerun()
 
+        # ── Feedback form — below sign-in, visible to anyone ─────────────────
+        st.divider()
+        st.markdown("#### 💬 Leave feedback")
+        st.caption("Have a thought about the app, a bug to report, or a suggestion? "
+                   "We read everything.")
+
+        fb_email = st.text_input(
+            "Your email (optional — leave blank to stay anonymous)",
+            placeholder="you@ox.ac.uk", key="fb_email"
+        )
+        fb_msg = st.text_area(
+            "Your message", placeholder="e.g. The Dr. Cortex hints were really helpful...",
+            height=100, key="fb_msg"
+        )
+        if st.button("Send feedback →", key="fb_submit"):
+            msg = fb_msg.strip()
+            if not msg:
+                st.error("Please write something before sending.")
+            else:
+                db.submit_feedback(msg, fb_email.strip() or None)
+                st.success("Thanks — feedback sent! ✅")
+                # Clear the fields
+                st.session_state.fb_msg   = ""
+                st.session_state.fb_email = ""
+                st.rerun()
+
 
 def check_auth() -> bool:
     """Return True if logged in, otherwise show login page and return False."""
@@ -427,6 +453,23 @@ def show_admin_page():
                              help=f"Remove {u['email']} from the system"):
                 db.remove_user(u["email"])
                 st.rerun()
+
+    st.divider()
+
+    # ── Feedback section ──────────────────────────────────────────────────────
+    st.markdown("#### Feedback")
+    feedback_rows = db.get_feedback()
+    if not feedback_rows:
+        st.info("No feedback submitted yet.")
+    else:
+        for f in feedback_rows:
+            who  = f.get("email") or "*anonymous*"
+            when = _relative_time(f.get("created_at", "")) if f.get("created_at") else ""
+            st.markdown(
+                f"<span style='color:#6c7d85;font-size:12px'>{who} · {when}</span>",
+                unsafe_allow_html=True
+            )
+            st.markdown(f"> {f.get('message', '')}")
 
     st.divider()
     if st.button("← Back to trainer"):

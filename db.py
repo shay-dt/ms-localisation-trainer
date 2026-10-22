@@ -167,6 +167,22 @@ def student_detail(email: str) -> list[dict]:
 
 # ── Admin summary ─────────────────────────────────────────────────────────────
 
+def submit_feedback(message: str, email: Optional[str] = None):
+    """Store a free-text feedback submission."""
+    _get().table("feedback").insert({
+        "email":   (email or "").strip().lower() or None,
+        "message": message.strip(),
+    }).execute()
+
+
+def get_feedback() -> list[dict]:
+    """All feedback entries, newest first."""
+    return _get().table("feedback") \
+                 .select("*") \
+                 .order("created_at", desc=True) \
+                 .execute().data
+
+
 def admin_summary() -> list[dict]:
     """
     Return all users enriched with:
