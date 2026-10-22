@@ -160,8 +160,9 @@ def load_case(case_number):
 # students are recognised by their email and their progress is restored.
 #
 # Secrets required:
-#   ACCESS_CODE  = "OxfordNeuro2026"   (distribute this to your cohort)
-#   ADMIN_EMAILS = "shay@atmanlabs.ai" (comma-separated; get admin dashboard)
+#   ACCESS_CODE       = "OxfordNeuro2026"  (distribute to your student cohort)
+#   ADMIN_ACCESS_CODE = "AdminSecret2026"  (share only with admins — keep separate)
+#   ADMIN_EMAILS      = "shay@atmanlabs.ai" (comma-separated; auto-get admin role)
 #
 # session_state keys set on login:
 #   logged_in  : True once authenticated
@@ -175,6 +176,15 @@ def _access_code() -> str:
         return str(st.secrets.get("ACCESS_CODE", "OxfordNeuro2026"))
     except Exception:
         return os.environ.get("ACCESS_CODE", "OxfordNeuro2026")
+
+
+def _admin_access_code() -> str:
+    """Separate code for admins. Falls back to student code if not configured."""
+    try:
+        val = st.secrets.get("ADMIN_ACCESS_CODE", "")
+    except Exception:
+        val = os.environ.get("ADMIN_ACCESS_CODE", "")
+    return str(val) if val else _access_code()
 
 
 def show_login_page():
@@ -200,11 +210,17 @@ def show_login_page():
 
             if not email or "@" not in email:
                 st.error("Please enter a valid email address.")
-            elif code != _access_code():
-                st.error("Access code incorrect — check with your session organiser.")
             else:
-                is_admin = email in _admin_emails()
-                user     = db.get_user(email)
+                # Determine if this is an admin email so we check the right code
+                is_admin_email = (email in _admin_emails() or
+                                  (db.get_user(email) or {}).get("role") == "admin")
+                expected_code  = _admin_access_code() if is_admin_email else _access_code()
+
+                if code != expected_code:
+                    st.error("Access code incorrect — check with your session organiser.")
+                else:
+                    is_admin = is_admin_email
+                    user     = db.get_user(email)
 
                 # First-time visitor: create their account automatically
                 if not user:
