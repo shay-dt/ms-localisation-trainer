@@ -472,18 +472,26 @@ def show_admin_page():
 
     # ── Feedback section ──────────────────────────────────────────────────────
     st.markdown("#### Feedback")
-    feedback_rows = db.get_feedback()
-    if not feedback_rows:
-        st.info("No feedback submitted yet.")
-    else:
-        for f in feedback_rows:
-            who  = f.get("email") or "*anonymous*"
-            when = _relative_time(f.get("created_at", "")) if f.get("created_at") else ""
-            st.markdown(
-                f"<span style='color:#6c7d85;font-size:12px'>{who} · {when}</span>",
-                unsafe_allow_html=True
-            )
-            st.markdown(f"> {f.get('message', '')}")
+    try:
+        feedback_rows = db.get_feedback()
+        if not feedback_rows:
+            st.info("No feedback submitted yet.")
+        else:
+            for f in feedback_rows:
+                who  = f.get("email") or "*anonymous*"
+                when = _relative_time(f.get("created_at", "")) if f.get("created_at") else ""
+                st.markdown(
+                    f"<span style='color:#6c7d85;font-size:12px'>{who} · {when}</span>",
+                    unsafe_allow_html=True
+                )
+                st.markdown(f"> {f.get('message', '')}")
+    except Exception:
+        st.warning("Feedback table not set up yet. Run this SQL in Supabase to enable it:\n\n"
+                   "```sql\nCREATE TABLE IF NOT EXISTS feedback (\n"
+                   "  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n"
+                   "  email TEXT,\n"
+                   "  message TEXT NOT NULL,\n"
+                   "  created_at TIMESTAMPTZ DEFAULT NOW()\n);\n```")
 
     st.divider()
     if st.button("← Back to trainer"):
