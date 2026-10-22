@@ -78,10 +78,24 @@ hr { border-color: #3a3a50 !important; }
 </style>
 """
 
+_BASE_CSS = """
+<style>
+/* Increase base readability — Streamlit default body text is too small */
+.stMarkdown p, .stMarkdown li,
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li { font-size: 16.5px !important; line-height: 1.75 !important; }
+[data-testid="stMarkdownContainer"] h4 { font-size: 18px !important; }
+.stRadio label, .stMultiSelect label,
+[data-testid="stWidgetLabel"] { font-size: 16px !important; }
+[data-testid="stCaptionContainer"] p { font-size: 13.5px !important; }
+</style>
+"""
+
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
 def apply_theme():
+    st.markdown(_BASE_CSS, unsafe_allow_html=True)
     if st.session_state.dark_mode:
         st.markdown(_DARK_CSS, unsafe_allow_html=True)
 
