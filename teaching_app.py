@@ -603,15 +603,6 @@ def show_welcome():
         "We're rooting for you — good luck! 🧠"
     )
 
-    # Preview image — small, inline
-    preview_img = Path(__file__).parent / "assets" / "question_format_preview.png"
-    if preview_img.exists():
-        st.markdown("#### What the questions look like")
-        st.caption("Scroll down past the exam image to find these checkpoints. Work through them in order.")
-        _, img_col, _ = st.columns([1, 4, 1])
-        with img_col:
-            st.image(str(preview_img), use_container_width=True)
-
     st.divider()
 
     if coach.coach_is_available():
@@ -622,6 +613,16 @@ def show_welcome():
     if st.button("▶️  Start training", type="primary"):
         st.session_state.started = True
         st.rerun()
+
+    # Preview image — below the Start button as supplementary context
+    preview_img = Path(__file__).parent / "assets" / "question_format_preview.png"
+    if preview_img.exists():
+        st.divider()
+        st.markdown("#### What the questions look like")
+        st.caption("Scroll down past the exam image to find these checkpoints. Work through them in order.")
+        _, img_col, _ = st.columns([1, 4, 1])
+        with img_col:
+            st.image(str(preview_img), use_container_width=True)
 
 
 if not st.session_state.started:
