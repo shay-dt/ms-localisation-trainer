@@ -35,6 +35,59 @@ import db           # Supabase database operations (db.py)
 st.set_page_config(layout="wide", page_title="Lesional Neurology Trainer", page_icon="🧠")
 
 
+# ── Dark mode ─────────────────────────────────────────────────────────────────
+_DARK_CSS = """
+<style>
+/* ── Base surfaces ── */
+.stApp, [data-testid="stAppViewContainer"],
+[data-testid="stMain"], [data-testid="stMainBlockContainer"] {
+    background-color: #0e1117 !important; color: #e8e8f0 !important;
+}
+[data-testid="stHeader"] { background-color: #0e1117 !important; }
+[data-testid="stSidebar"] { background-color: #1a1c24 !important; }
+[data-testid="stSidebar"] * { color: #e8e8f0 !important; }
+/* ── Text ── */
+h1, h2, h3, h4, h5, h6, p, li, span, label, div,
+.stMarkdown, [data-testid="stMarkdownContainer"] { color: #e8e8f0 !important; }
+[data-testid="stCaptionContainer"], .stCaption { color: #9090a8 !important; }
+/* ── Inputs ── */
+[data-testid="stTextInput"] input,
+.stTextArea textarea {
+    background-color: #1e2130 !important;
+    color: #e8e8f0 !important;
+    border-color: #3a3a50 !important;
+}
+[data-testid="stSelectbox"] > div > div,
+[data-testid="stMultiSelect"] > div > div {
+    background-color: #1e2130 !important;
+    color: #e8e8f0 !important;
+}
+/* ── Buttons ── */
+[data-testid="stRadio"] label, [data-testid="stCheckbox"] label { color: #e8e8f0 !important; }
+/* ── Expanders / containers ── */
+[data-testid="stExpander"] { background-color: #1a1c24 !important; border-color: #3a3a50 !important; }
+[data-testid="stExpander"] summary { color: #e8e8f0 !important; }
+/* ── Alerts / callouts ── */
+[data-testid="stAlert"] { background-color: #1e2130 !important; }
+/* ── Dividers ── */
+hr { border-color: #3a3a50 !important; }
+/* ── Metrics ── */
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: #e8e8f0 !important; }
+/* ── Progress bar track ── */
+[data-testid="stProgressBar"] > div { background-color: #2a2a3a !important; }
+</style>
+"""
+
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = False
+
+def apply_theme():
+    if st.session_state.dark_mode:
+        st.markdown(_DARK_CSS, unsafe_allow_html=True)
+
+apply_theme()
+
+
 # ── Constants ──────────────────────────────────────────────────────────────────
 REGION_OPTIONS = [
     "Cortex", "Subcortical / White matter", "Brainstem", "Cerebellum",
@@ -190,6 +243,14 @@ def _admin_access_code() -> str:
 def show_login_page():
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
+        # Dark mode toggle — top right of login card
+        _, toggle_col = st.columns([4, 1])
+        with toggle_col:
+            dm = st.toggle("🌙 Dark", value=st.session_state.dark_mode, key="dm_login")
+            if dm != st.session_state.dark_mode:
+                st.session_state.dark_mode = dm
+                st.rerun()
+
         st.markdown("# 🧠 Lesional Neurology Trainer")
         st.markdown("*Oxford Clinical Neurosciences — Catchup Module*")
         st.divider()
@@ -544,6 +605,12 @@ with st.sidebar:
         if st.button("⚙️ Admin dashboard", use_container_width=True):
             st.session_state.show_admin = True
             st.rerun()
+
+    # Dark mode toggle in sidebar
+    dm_sidebar = st.toggle("🌙 Dark mode", value=st.session_state.dark_mode, key="dm_sidebar")
+    if dm_sidebar != st.session_state.dark_mode:
+        st.session_state.dark_mode = dm_sidebar
+        st.rerun()
 
     # Sign-out button
     user_display = st.session_state.get("user_email", "")
