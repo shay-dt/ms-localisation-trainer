@@ -484,7 +484,7 @@ def show_admin_page():
                     f"<span style='color:#6c7d85;font-size:12px'>{who} · {when}</span>",
                     unsafe_allow_html=True
                 )
-                st.markdown(f"> {f.get('message', '')}")
+                st.markdown(f"> {f.get('text', f.get('message', ''))}")
     except Exception:
         st.warning("Feedback table not set up yet. Run this SQL in Supabase to enable it:\n\n"
                    "```sql\nCREATE TABLE IF NOT EXISTS feedback (\n"

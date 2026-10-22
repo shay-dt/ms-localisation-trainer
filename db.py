@@ -168,10 +168,13 @@ def student_detail(email: str) -> list[dict]:
 # ── Admin summary ─────────────────────────────────────────────────────────────
 
 def submit_feedback(message: str, email: Optional[str] = None):
-    """Store a free-text feedback submission."""
+    """Store a free-text feedback submission.
+    Note: the column in Supabase is named 'text' (created via Table Editor GUI).
+    email is stored as empty string if not provided (column is NOT NULL).
+    """
     _get().table("feedback").insert({
-        "email":   (email or "").strip().lower() or None,
-        "message": message.strip(),
+        "email": (email or "").strip().lower(),  # empty string if anonymous
+        "text":  message.strip(),
     }).execute()
 
 
