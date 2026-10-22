@@ -603,15 +603,12 @@ def show_welcome():
         "We're rooting for you — good luck! 🧠"
     )
 
-    # Preview image in a collapsed expander so the Start button stays in view
+    # Preview image — small, inline
     preview_img = Path(__file__).parent / "assets" / "question_format_preview.png"
     if preview_img.exists():
-        with st.expander("👁 See what the questions look like"):
-            st.caption(
-                "After reading the examination, scroll down to find these checkpoints. "
-                "Work through them in order — don't skip straight to Reveal."
-            )
-            st.image(str(preview_img), use_container_width=True)
+        st.markdown("#### What the questions look like")
+        st.caption("Scroll down past the exam image to find these checkpoints. Work through them in order.")
+        st.image(str(preview_img), width=420)
 
     st.divider()
 
