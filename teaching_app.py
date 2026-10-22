@@ -915,13 +915,24 @@ with main_col:
 
 # ── Dr. Cortex chat (right column) ────────────────────────────────────────────
 with coach_col:
-    st.markdown("#### 💬 Dr. Cortex — your AI tutor")
+    # Orange highlight box to draw the eye to Dr. Cortex
+    st.markdown(
+        """<div style="border:2px solid #f5a623;border-radius:10px;padding:14px 16px;
+                       background:rgba(245,166,35,0.08);margin-bottom:12px;">
+            <span style="font-size:16px;font-weight:700;color:#d4860a;">💬 Dr. Cortex — your AI tutor</span><br>
+            <span style="font-size:14px;">Ask for a hint — she'll guide you, never just hand over the answer.</span><br>
+            <span style="font-size:13px;color:#888;font-style:italic;">
+                Sometimes Dr. Cortex might get things wrong (not often, but sometimes) — so stay sharp!
+            </span>
+        </div>""",
+        unsafe_allow_html=True
+    )
 
     if not coach.coach_is_available():
         st.info("Dr. Cortex is offline right now. The trainer still works fully — "
                 "reason it out yourself and reveal the answer when ready.")
     else:
-        st.caption("Ask for a hint — she'll guide you, never just hand over the answer.")
+        pass  # header above replaces the old caption
 
         chat_key = f"chat_{chosen}"
         if chat_key not in st.session_state:
