@@ -128,13 +128,17 @@ def load_case(case_number):
     report_file = case_path / f"validation_report_{REFERENCE_MODEL}.json"
     data["lesions"] = []
     data["diagnosis"] = []
+    data["demographics"] = {}
+    data["ddx_report"] = ""
     if report_file.exists():
         report  = json.loads(report_file.read_text(encoding="utf-8"))
         marking = report.get("marking_output", {})
         loc     = marking.get("Localisation", {}).get("structured_data", {})
         ddx     = marking.get("Differential diagnosis", {}).get("structured_data", {})
-        data["lesions"]   = loc.get("gt_lesions_english", [])
-        data["diagnosis"] = list(ddx.get("gt_diagnoses_with_source", {}).keys())
+        data["lesions"]      = loc.get("gt_lesions_english", [])
+        data["diagnosis"]    = list(ddx.get("gt_diagnoses_with_source", {}).keys())
+        data["demographics"] = report.get("patient_demographics", {})
+        data["ddx_report"]   = marking.get("Differential diagnosis", {}).get("report_string", "")
 
     ans_file = case_path / f"q_{REFERENCE_MODEL}_localisation.json"
     data["reference_reasoning"] = ""

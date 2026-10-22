@@ -69,8 +69,13 @@ def coach_is_available():
 # --- The coach's PERSONA and rules (shared across providers) ---
 # Note it is given the correct answer, but told firmly not to reveal it.
 def _system_prompt(case):
-    lesions = ", ".join(case.get("lesions", [])) or "unknown"
+    lesions   = ", ".join(case.get("lesions", [])) or "unknown"
     diagnosis = ", ".join(case.get("diagnosis", [])) or "unknown"
+    reasoning = case.get("reference_reasoning", "").strip()
+    ddx       = case.get("ddx_report", "").strip()
+    demo      = case.get("demographics", {})
+    demo_str  = (f"Age {demo.get('age', '?'):.0f}, {demo.get('sex', '?')}"
+                 if demo else "")
     return (
         "You are Dr. Cortex, a warm, encouraging consultant neurologist tutoring a "
         "medical student on lesion localisation. You have access to knowledge from thousands "
@@ -134,9 +139,15 @@ def _system_prompt(case):
         "- Keep replies SHORT: 2–3 sentences maximum, always ending with a question.\n"
         "- Be warm and encouraging. Never make the student feel foolish.\n\n"
 
-        f"PRIVATE — use only to steer your questions, never reveal:\n"
+        f"PRIVATE — use only to ground your questions, never reveal to the student:\n\n"
+        f"Patient: {demo_str}\n"
         f"Correct lesion(s): {lesions}\n"
-        f"Diagnosis: {diagnosis}"
+        f"Diagnosis: {diagnosis}\n\n"
+        f"REFERENCE LOCALISATION REASONING (the worked answer — do NOT recite this, "
+        f"but use it to know exactly which sign implicates which structure, which "
+        f"structures are excluded, and the precise laterality. When a student makes a "
+        f"claim, check it against this before responding):\n{reasoning}\n\n"
+        f"DIFFERENTIAL DIAGNOSIS CONTEXT (for grounding epidemiological questions):\n{ddx}"
     )
 
 
