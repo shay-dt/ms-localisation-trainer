@@ -608,7 +608,9 @@ def show_welcome():
     if preview_img.exists():
         st.markdown("#### What the questions look like")
         st.caption("Scroll down past the exam image to find these checkpoints. Work through them in order.")
-        st.image(str(preview_img), width=680)
+        _, img_col, _ = st.columns([1, 4, 1])
+        with img_col:
+            st.image(str(preview_img), use_container_width=True)
 
     st.divider()
 
