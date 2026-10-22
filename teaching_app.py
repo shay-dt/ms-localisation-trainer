@@ -915,39 +915,43 @@ with main_col:
 
 # ── Dr. Cortex chat (right column) ────────────────────────────────────────────
 with coach_col:
-    # Orange highlight box to draw the eye to Dr. Cortex
-    st.markdown(
-        """<div style="border:2px solid #f5a623;border-radius:10px;padding:14px 16px;
-                       background:rgba(245,166,35,0.08);margin-bottom:12px;">
-            <span style="font-size:16px;font-weight:700;color:#d4860a;">💬 Dr. Cortex — your AI tutor</span><br>
-            <span style="font-size:14px;">Ask for a hint — she'll guide you, never just hand over the answer.</span><br>
-            <span style="font-size:13px;color:#888;font-style:italic;">
-                Sometimes Dr. Cortex might get things wrong (not often, but sometimes) — so stay sharp!
-            </span>
-        </div>""",
-        unsafe_allow_html=True
-    )
+    with st.container(border=True):
+        # Blue header — trustworthy, draws the eye
+        st.markdown(
+            """<div style="background:rgba(42,120,214,0.08);border-radius:8px;
+                           padding:12px 14px;margin-bottom:10px;
+                           border-left:4px solid #2a78d6;">
+                <span style="font-size:16px;font-weight:700;color:#2a78d6;">
+                    💬 Dr. Cortex — your AI tutor
+                </span><br>
+                <span style="font-size:14px;">
+                    Ask for a hint — she'll guide you, never just hand over the answer.
+                </span><br>
+                <span style="font-size:13px;color:#888;font-style:italic;">
+                    Sometimes Dr. Cortex might get things wrong (not often, but sometimes) — so stay sharp!
+                </span>
+            </div>""",
+            unsafe_allow_html=True
+        )
 
-    if not coach.coach_is_available():
-        st.info("Dr. Cortex is offline right now. The trainer still works fully — "
-                "reason it out yourself and reveal the answer when ready.")
-    else:
-        pass  # header above replaces the old caption
+        if not coach.coach_is_available():
+            st.info("Dr. Cortex is offline right now. The trainer still works fully — "
+                    "reason it out yourself and reveal the answer when ready.")
+        else:
+            chat_key = f"chat_{chosen}"
+            if chat_key not in st.session_state:
+                st.session_state[chat_key] = []
 
-        chat_key = f"chat_{chosen}"
-        if chat_key not in st.session_state:
-            st.session_state[chat_key] = []
+            for msg in st.session_state[chat_key]:
+                with st.chat_message("user" if msg["role"] == "user" else "assistant"):
+                    st.markdown(msg["content"])
 
-        for msg in st.session_state[chat_key]:
-            with st.chat_message("user" if msg["role"] == "user" else "assistant"):
-                st.markdown(msg["content"])
-
-        if prompt := st.chat_input("e.g. 'I think it's a cord lesion — am I close?'"):
-            st.session_state[chat_key].append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            with st.chat_message("assistant"):
-                reply = st.write_stream(
-                    coach.get_coach_reply(st.session_state[chat_key], case)
-                )
-            st.session_state[chat_key].append({"role": "assistant", "content": reply})
+            if prompt := st.chat_input("e.g. 'I think it's a cord lesion — am I close?'"):
+                st.session_state[chat_key].append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                with st.chat_message("assistant"):
+                    reply = st.write_stream(
+                        coach.get_coach_reply(st.session_state[chat_key], case)
+                    )
+                st.session_state[chat_key].append({"role": "assistant", "content": reply})
