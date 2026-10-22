@@ -117,17 +117,26 @@ def verify_otp(email: str, code: str) -> bool:
 
 # ── Completions ───────────────────────────────────────────────────────────────
 
-def log_completion(email: str, case_number: str, self_rating: str):
+def log_completion(email: str, case_number: str, self_rating: str,
+                   cp_pattern: Optional[str] = None,
+                   cp_regions: Optional[list] = None,
+                   cp_sides:   Optional[list] = None,
+                   free_text:  Optional[str] = None):
     """
-    Record (or update) a case completion.
+    Record (or update) a case completion with the student's actual answers.
     self_rating is 'nailed_it' or 'needs_review'.
-    Uses upsert so submitting the same case twice just updates the rating.
+    Uses upsert so submitting the same case twice just updates the record.
     """
+    import json as _json
     _get().table("completions").upsert({
-        "user_email": email.lower(),
+        "user_email":  email.lower(),
         "case_number": case_number,
         "self_rating": self_rating,
         "completed_at": datetime.now(timezone.utc).isoformat(),
+        "cp_pattern":  cp_pattern or "",
+        "cp_regions":  _json.dumps(cp_regions or []),
+        "cp_sides":    _json.dumps(cp_sides or []),
+        "free_text":   (free_text or "").strip(),
     }, on_conflict="user_email,case_number").execute()
 
 
@@ -137,6 +146,23 @@ def completions_for(email: str) -> list[dict]:
                  .select("*") \
                  .eq("user_email", email.lower()) \
                  .execute().data
+
+
+def student_detail(email: str) -> list[dict]:
+    """
+    All completions for a student, with answer fields parsed back to Python types.
+    Returns rows sorted by case_number.
+    """
+    import json as _json
+    rows = completions_for(email)
+    for r in rows:
+        for col in ("cp_regions", "cp_sides"):
+            raw = r.get(col) or "[]"
+            try:
+                r[col] = _json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                r[col] = []
+    return sorted(rows, key=lambda r: r.get("case_number", ""))
 
 
 # ── Admin summary ─────────────────────────────────────────────────────────────

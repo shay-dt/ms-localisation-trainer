@@ -246,6 +246,12 @@ if not check_auth():
 # ===========================================================================
 
 def show_admin_page():
+    # ── Student detail view ───────────────────────────────────────────────────
+    if st.session_state.get("admin_student_view"):
+        _show_student_detail(st.session_state.admin_student_view)
+        return
+
+    # ── Main admin page ───────────────────────────────────────────────────────
     st.title("🧠 Lesional Neurology Trainer — Admin")
     st.caption(f"Signed in as **{st.session_state.get('user_email', '')}**")
 
@@ -276,6 +282,7 @@ def show_admin_page():
 
     # ── Student table ─────────────────────────────────────────────────────────
     st.markdown("#### Students")
+    st.caption("Click a student's email to see their answers for each case.")
 
     summary = db.admin_summary()
     students = [u for u in summary if u.get("role") == "student"]
@@ -283,7 +290,6 @@ def show_admin_page():
     if not students:
         st.info("No students added yet. Use the form above to add them.")
     else:
-        # Column headers
         h = st.columns([3, 2, 1.8, 1.5, 1])
         for col, label in zip(h, ["Email", "Last login", "Completed", "⭐ Nailed", ""]):
             col.markdown(f"<span style='color:#6c7d85;font-size:13px;font-weight:600'>"
@@ -292,11 +298,15 @@ def show_admin_page():
 
         for u in students:
             row = st.columns([3, 2, 1.8, 1.5, 1])
-            row[0].markdown(u["email"])
+
+            # Clickable email → opens student detail view
+            if row[0].button(u["email"], key=f"view_{u['email']}",
+                             help="Click to see this student's answers"):
+                st.session_state.admin_student_view = u["email"]
+                st.rerun()
 
             last = u.get("last_login_at")
             row[1].markdown(_relative_time(last) if last else "*never*")
-
             row[2].markdown(f"{u['cases_completed']} / {len(CHOSEN_CASES)}")
             row[3].markdown(str(u["cases_nailed"]))
 
@@ -309,6 +319,43 @@ def show_admin_page():
     if st.button("← Back to trainer"):
         st.session_state.show_admin = False
         st.rerun()
+
+
+def _show_student_detail(email: str):
+    """Detail view: all completed cases for one student with their answers."""
+    st.title(f"🧠 Student answers")
+    st.markdown(f"**{email}**")
+
+    if st.button("← Back to all students"):
+        st.session_state.admin_student_view = None
+        st.rerun()
+
+    st.divider()
+
+    rows = db.student_detail(email)
+    if not rows:
+        st.info("This student hasn't completed any cases yet.")
+        return
+
+    for r in rows:
+        case_num  = r.get("case_number", "?")
+        case_idx  = CHOSEN_CASES.index(case_num) + 1 if case_num in CHOSEN_CASES else "?"
+        rating    = r.get("self_rating", "")
+        badge     = "⭐ Nailed it" if rating == "nailed_it" else "📚 Needs review"
+        completed = r.get("completed_at", "")
+
+        with st.expander(f"Case {case_idx}  —  {badge}  ({_relative_time(completed) if completed else ''})", expanded=False):
+
+            q1 = r.get("cp_pattern") or "*not answered*"
+            q2 = ", ".join(r.get("cp_regions") or []) or "*not answered*"
+            q3 = ", ".join(r.get("cp_sides") or []) or "*not answered*"
+            q4 = r.get("free_text") or "*not answered*"
+
+            st.markdown(f"**Q1 — Pattern:** {q1}")
+            st.markdown(f"**Q2 — Region(s):** {q2}")
+            st.markdown(f"**Q3 — Side(s):** {q3}")
+            st.markdown("**Q4 — Their reasoning:**")
+            st.markdown(f"> {q4}")
 
 
 # Route admin to the dashboard if they asked for it
@@ -421,7 +468,8 @@ with st.sidebar:
     st.caption(f"Signed in as {user_display}")
     if st.button("Sign out", use_container_width=True):
         for key in ["logged_in", "user_email", "user_role",
-                    "started", "score", "scored", "show_admin"]:
+                    "started", "score", "scored", "show_admin",
+                    "admin_student_view"]:
             st.session_state.pop(key, None)
         st.rerun()
 
@@ -594,7 +642,13 @@ with main_col:
                 st.session_state.scored.add(chosen)
                 st.session_state.score += 1
                 if st.session_state.get("user_email"):
-                    db.log_completion(st.session_state.user_email, chosen, "nailed_it")
+                    db.log_completion(
+                        st.session_state.user_email, chosen, "nailed_it",
+                        cp_pattern = st.session_state.get(f"cp_num_{chosen}"),
+                        cp_regions = st.session_state.get(f"cp_reg_{chosen}", []),
+                        cp_sides   = st.session_state.get(f"cp_side_{chosen}", []),
+                        free_text  = st.session_state.get(f"answer_{chosen}", ""),
+                    )
                 st.balloons()
                 st.rerun()
 
@@ -602,7 +656,13 @@ with main_col:
             if st.button("📚 I'll review this one", disabled=already, key=f"review_{chosen}"):
                 st.session_state.scored.add(chosen)
                 if st.session_state.get("user_email"):
-                    db.log_completion(st.session_state.user_email, chosen, "needs_review")
+                    db.log_completion(
+                        st.session_state.user_email, chosen, "needs_review",
+                        cp_pattern = st.session_state.get(f"cp_num_{chosen}"),
+                        cp_regions = st.session_state.get(f"cp_reg_{chosen}", []),
+                        cp_sides   = st.session_state.get(f"cp_side_{chosen}", []),
+                        free_text  = st.session_state.get(f"answer_{chosen}", ""),
+                    )
                 st.rerun()
 
         if already:
