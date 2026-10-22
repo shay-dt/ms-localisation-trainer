@@ -856,6 +856,13 @@ with main_col:
         else:
             st.session_state[reveal_key] = True
 
+    if st.session_state[reveal_key]:
+        st.caption(
+            "👇 Scroll down to see the answer — then **honestly** rate yourself at the bottom. "
+            "No one benefits from marking yourself right when you weren't. "
+            "Your tutors can see your answers and your self-rating, so be fair to yourself."
+        )
+
     # ── THE REVEAL — inline in main column so it appears right here ───────────
     if st.session_state[reveal_key]:
         st.divider()
