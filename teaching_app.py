@@ -500,9 +500,12 @@ with main_col:
                "to get feedback. Write up your full reasoning in Q4, then reveal.")
 
     answers = derive_answers(case["lesions"])
-    submit_key = f"cp_submitted_{chosen}"
-    if submit_key not in st.session_state:
-        st.session_state[submit_key] = False
+    submit_key   = f"cp_submitted_{chosen}"
+    attempts_key = f"cp_attempts_{chosen}"
+    hint_key     = f"cp_hint_{chosen}"
+    if submit_key   not in st.session_state: st.session_state[submit_key]   = False
+    if attempts_key not in st.session_state: st.session_state[attempts_key] = 0
+    if hint_key     not in st.session_state: st.session_state[hint_key]     = False
 
     # ── Checkpoint 1: how many lesions? ──────────────────────────────────────
     st.markdown("**1. What is the pattern of the lesion(s)?**")
@@ -532,7 +535,8 @@ with main_col:
     # ── Submit button — gates all checkpoint feedback ─────────────────────────
     btn_label = "🔄 Check again" if st.session_state[submit_key] else "✅ Check my answers"
     if st.button(btn_label, key=f"cp_submit_{chosen}"):
-        st.session_state[submit_key] = True
+        st.session_state[submit_key]    = True
+        st.session_state[attempts_key] += 1
 
     # ── Feedback — only shown after submit ────────────────────────────────────
     if st.session_state[submit_key]:
@@ -581,6 +585,25 @@ with main_col:
         else:
             st.warning("🤔 Q3: check the laterality of each sign against where its tract "
                        "decussates. Ipsilateral cranial-nerve + contralateral body signs = brainstem.")
+
+        # ── Hint after 3 failed attempts ─────────────────────────────────────
+        q1_ok = c1 == answers["one_or_many"]
+        q2_ok = bool(picked_regions) and set(picked_regions) == answers["regions"]
+        q3_ok = bool(picked_sides)   and set(picked_sides)   == answers["sides"]
+
+        if not (q1_ok and q2_ok and q3_ok) and st.session_state[attempts_key] >= 3:
+            if not st.session_state[hint_key]:
+                st.info(f"You've had {st.session_state[attempts_key]} attempts. "
+                        "Would you like to see the correct answers for Q1–3?")
+                if st.button("💡 Show me the correct answers", key=f"hint_btn_{chosen}"):
+                    st.session_state[hint_key] = True
+                    st.rerun()
+            else:
+                st.success(
+                    f"**Q1:** {answers['one_or_many']}  \n"
+                    f"**Q2:** {', '.join(sorted(answers['regions']))}  \n"
+                    f"**Q3:** {', '.join(sorted(answers['sides']))}"
+                )
 
     st.divider()
     st.markdown("**4. Now write up your full reasoning** "
