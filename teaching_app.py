@@ -222,26 +222,26 @@ def show_login_page():
                     is_admin = is_admin_email
                     user     = db.get_user(email)
 
-                # First-time visitor: create their account automatically
-                if not user:
-                    db.add_user(email, role="admin" if is_admin else "student")
-                    user = db.get_user(email)
+                    # First-time visitor: create their account automatically
+                    if not user:
+                        db.add_user(email, role="admin" if is_admin else "student")
+                        user = db.get_user(email)
 
-                db.touch_login(email)
+                    db.touch_login(email)
 
-                # Restore any prior progress from the database
-                prior = db.completions_for(email)
-                st.session_state.scored = set(c["case_number"] for c in prior)
-                st.session_state.score  = sum(
-                    1 for c in prior if c.get("self_rating") == "nailed_it"
-                )
+                    # Restore any prior progress from the database
+                    prior = db.completions_for(email)
+                    st.session_state.scored = set(c["case_number"] for c in prior)
+                    st.session_state.score  = sum(
+                        1 for c in prior if c.get("self_rating") == "nailed_it"
+                    )
 
-                st.session_state.logged_in  = True
-                st.session_state.user_email = email
-                st.session_state.user_role  = "admin" if is_admin else (
-                    user.get("role", "student") if user else "student"
-                )
-                st.rerun()
+                    st.session_state.logged_in  = True
+                    st.session_state.user_email = email
+                    st.session_state.user_role  = "admin" if is_admin else (
+                        user.get("role", "student") if user else "student"
+                    )
+                    st.rerun()
 
 
 def check_auth() -> bool:
