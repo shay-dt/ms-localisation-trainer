@@ -525,6 +525,14 @@ if "scored" not in st.session_state:
 def show_welcome():
     st.title("🧠 Lesional Neurology Trainer")
     st.subheader("Learn to pinpoint where the lesion is — like a neurologist.")
+    # Dark mode toggle on welcome screen (sidebar not yet visible here)
+    _, dm_col = st.columns([5, 1])
+    with dm_col:
+        dm = st.toggle("🌙 Dark", value=st.session_state.dark_mode, key="dm_welcome")
+        if dm != st.session_state.dark_mode:
+            st.session_state.dark_mode = dm
+            st.rerun()
+
     st.markdown(
         "This module contains **10 real-style neurological examinations**. "
         "For each one, your job is to **work out where the lesion is** before the answer is revealed."
@@ -552,16 +560,14 @@ def show_welcome():
         "We're rooting for you — good luck! 🧠"
     )
 
-    # Preview of the question format — constrained width so it fits without scrolling
+    # Preview image in a collapsed expander so the Start button stays in view
     preview_img = Path(__file__).parent / "assets" / "question_format_preview.png"
     if preview_img.exists():
-        st.markdown("#### What the questions look like")
-        st.caption(
-            "After reading the examination, scroll down to find these checkpoints. "
-            "Work through them in order — don't skip straight to Reveal."
-        )
-        _, img_col, _ = st.columns([1, 3, 1])
-        with img_col:
+        with st.expander("👁 See what the questions look like"):
+            st.caption(
+                "After reading the examination, scroll down to find these checkpoints. "
+                "Work through them in order — don't skip straight to Reveal."
+            )
             st.image(str(preview_img), use_container_width=True)
 
     st.divider()
