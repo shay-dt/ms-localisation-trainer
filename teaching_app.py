@@ -255,27 +255,33 @@ def show_admin_page():
     st.title("🧠 Lesional Neurology Trainer — Admin")
     st.caption(f"Signed in as **{st.session_state.get('user_email', '')}**")
 
-    # ── Add a student ─────────────────────────────────────────────────────────
-    st.markdown("#### Add a student")
-    st.caption("Students must be added here before they can sign in.")
+    # ── Add a person ──────────────────────────────────────────────────────────
+    st.markdown("#### Add a person")
+    st.caption("Students and admins must be added here before they can sign in.")
 
-    col_em, col_btn = st.columns([4, 1])
+    col_em, col_role, col_btn = st.columns([3, 1, 1])
     with col_em:
         new_email = st.text_input(
-            "Student email", placeholder="student@ox.ac.uk",
+            "Email", placeholder="person@ox.ac.uk",
             label_visibility="collapsed", key="admin_invite_email"
+        )
+    with col_role:
+        new_role = st.selectbox(
+            "Role", ["Student", "Admin"],
+            label_visibility="collapsed", key="admin_invite_role"
         )
     with col_btn:
         if st.button("Add", type="primary", use_container_width=True):
             email = new_email.strip().lower()
+            role  = new_role.lower()
             if not email or "@" not in email:
                 st.error("Enter a valid email.")
             elif db.get_user(email):
                 st.warning(f"{email} is already in the system.")
             else:
-                db.add_user(email, role="student",
+                db.add_user(email, role=role,
                             invited_by=st.session_state.get("user_email"))
-                st.success(f"Added {email}")
+                st.success(f"Added {email} as {new_role}.")
                 st.rerun()
 
     st.divider()
@@ -284,8 +290,39 @@ def show_admin_page():
     st.markdown("#### Students")
     st.caption("Click a student's email to see their answers for each case.")
 
-    summary = db.admin_summary()
+    summary  = db.admin_summary()
     students = [u for u in summary if u.get("role") == "student"]
+    admins   = [u for u in summary if u.get("role") == "admin"]
+
+    # ── Admin list ────────────────────────────────────────────────────────────
+    st.markdown("#### Admins")
+    if not admins:
+        st.info("No admins in the database yet (you were auto-created from ADMIN_EMAILS).")
+    else:
+        h = st.columns([4, 2, 1])
+        for col, label in zip(h, ["Email", "Last login", ""]):
+            col.markdown(f"<span style='color:#6c7d85;font-size:13px;font-weight:600'>"
+                         f"{label}</span>", unsafe_allow_html=True)
+        st.divider()
+        me = st.session_state.get("user_email", "")
+        for u in admins:
+            row  = st.columns([4, 2, 1])
+            row[0].markdown(u["email"])
+            last = u.get("last_login_at")
+            row[1].markdown(_relative_time(last) if last else "*never*")
+            # Prevent self-removal
+            if u["email"] != me:
+                if row[2].button("Remove", key=f"rma_{u['email']}"):
+                    db.remove_user(u["email"])
+                    st.rerun()
+            else:
+                row[2].markdown("*(you)*")
+
+    st.divider()
+
+    # ── Student list ──────────────────────────────────────────────────────────
+    st.markdown("#### Students")
+    st.caption("Click a student's email to see their answers for each case.")
 
     if not students:
         st.info("No students added yet. Use the form above to add them.")
@@ -299,7 +336,6 @@ def show_admin_page():
         for u in students:
             row = st.columns([3, 2, 1.8, 1.5, 1])
 
-            # Clickable email → opens student detail view
             if row[0].button(u["email"], key=f"view_{u['email']}",
                              help="Click to see this student's answers"):
                 st.session_state.admin_student_view = u["email"]
