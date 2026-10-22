@@ -544,8 +544,12 @@ def show_welcome():
         "**Step 3 — Answer the four questions below the examination.**  \n"
         "Work through the checkpoints in order and get instant feedback on each one. "
         "Then write up your full reasoning in the free-text box.\n\n"
-        "**Step 4 — Reveal and score yourself.**  \n"
-        "Compare your answer to the correct localisation and rate how you did."
+        "**Step 4 — Reveal, reflect, and log your progress.**  \n"
+        "Compare your answer to the correct localisation, then tap **⭐ I got it right** "
+        "or **📚 I'll review this one** — this is what saves your progress. "
+        "Your completion of each case is recorded as part of your catchup session with the "
+        "NDCN Undergraduate Faculty, so please make sure you rate every case you attempt. "
+        "We're rooting for you — good luck! 🧠"
     )
 
     # Preview of the question format — constrained width so it fits without scrolling
