@@ -903,6 +903,8 @@ with main_col:
                         cp_sides   = st.session_state.get(f"cp_side_{chosen}", []),
                         free_text  = st.session_state.get(f"answer_{chosen}", ""),
                     )
+                st.toast("✅ Case submitted — well done! Now please move on to the next case.",
+                         icon="🎉")
                 st.balloons()
                 st.rerun()
 
@@ -917,6 +919,8 @@ with main_col:
                         cp_sides   = st.session_state.get(f"cp_side_{chosen}", []),
                         free_text  = st.session_state.get(f"answer_{chosen}", ""),
                     )
+                st.toast("✅ Case submitted — well done! Now please move on to the next case.",
+                         icon="📚")
                 st.rerun()
 
         if already:
