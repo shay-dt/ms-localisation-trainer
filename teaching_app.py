@@ -324,13 +324,16 @@ def show_login_page():
         st.caption("Have a thought about the app, a bug to report, or a suggestion? "
                    "We read everything.")
 
+        # Counter key forces new widget instances (clears fields) after submit
+        _fk = st.session_state.get("fb_key", 0)
+
         fb_email = st.text_input(
             "Your email (optional — leave blank to stay anonymous)",
-            placeholder="you@ox.ac.uk", key="fb_email"
+            placeholder="you@ox.ac.uk", key=f"fb_email_{_fk}"
         )
         fb_msg = st.text_area(
             "Your message", placeholder="e.g. The Dr. Cortex hints were really helpful...",
-            height=100, key="fb_msg"
+            height=100, key=f"fb_msg_{_fk}"
         )
         if st.button("Send feedback →", key="fb_submit"):
             msg = fb_msg.strip()
@@ -338,10 +341,8 @@ def show_login_page():
                 st.error("Please write something before sending.")
             else:
                 db.submit_feedback(msg, fb_email.strip() or None)
-                st.success("Thanks — feedback sent! ✅")
-                # Clear the fields
-                st.session_state.fb_msg   = ""
-                st.session_state.fb_email = ""
+                st.session_state.fb_key = _fk + 1  # new key = blank fields on rerun
+                st.toast("Thanks — feedback sent! ✅", icon="💬")
                 st.rerun()
 
 
